@@ -22,12 +22,28 @@ const mapping = {
   "RTCL": "Ready to Close"
 };
 
+// Month names
+const monthNames = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 const codeSelect = document.getElementById('codeSelect');
+const dateInput = document.getElementById('dateInput');
 const applyBtn = document.getElementById('apply');
 const previewBtn = document.getElementById('preview');
 const status = document.getElementById('status');
 const previewBox = document.getElementById('previewBox');
 const copyBtn = document.getElementById('copyBtn');
+
+// Set default date to today
+const today = new Date();
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, '0');
+const dd = String(today.getDate()).padStart(2, '0');
+dateInput.value = `${yyyy}-${mm}-${dd}`;
+
+// Disable past dates
+dateInput.setAttribute('min', `${yyyy}-${mm}-${dd}`);
 
 // Populate dropdown
 Object.entries(mapping).forEach(([code, def]) => {
@@ -42,15 +58,50 @@ function showStatus(msg, isError = false) {
   status.style.color = isError ? '#a00' : '#060';
 }
 
+// Format date to "DD-Month" format
+function formatDateString(dateValue) {
+  if (!dateValue) return '';
+  const date = new Date(dateValue + 'T00:00:00');
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = monthNames[date.getMonth()];
+  return `${day}-${month}`;
+}
+
+// Build the full title string with optional date
+function buildTitleString(code, def, preserveRest, currentValue, selectedDate) {
+  let rest = '';
+  
+  // Extract rest of the title if preserve is checked
+  if (preserveRest && currentValue) {
+    const codePattern = Object.keys(mapping).map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[-:]+\\s*)?(.*)$', 'i');
+    const m = currentValue.match(leadingRegex);
+    if (m && m[2] !== undefined) {
+      rest = m[2].trim();
+    } else if (currentValue.trim()) {
+      rest = currentValue.trim();
+    }
+  }
+  
+  let titleString = code + ' - ' + def + (rest ? ' ' + rest : '');
+  
+  // Add date if selected
+  if (selectedDate) {
+    const formattedDate = formatDateString(selectedDate);
+    titleString += ' | NC: ' + formattedDate;
+  }
+  
+  return titleString;
+}
+
 // Compute preview for the first matched element on the page (does NOT modify the DOM)
-async function computePreviewOnPage(code, def, preserveRest) {
+async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) throw new Error('No active tab found');
 
   const resp = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: (selector, code, def, preserveRest, allCodes) => {
-      // Build code regex for leading code detection
+    func: (selector, code, def, preserveRest, selectedDate, allCodes, monthNamesArray) => {
       const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
       const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[-:]+\\s*)?(.*)$', 'i');
 
@@ -62,7 +113,6 @@ async function computePreviewOnPage(code, def, preserveRest) {
       }
       if (!els.length) return { success: false, error: 'Internal title field not found on this page' };
 
-      // For preview, compute new value for first element
       const el = els[0];
       const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
       const current = isInput ? (el.value || '') : (el.textContent || '');
@@ -83,23 +133,31 @@ async function computePreviewOnPage(code, def, preserveRest) {
       } else {
         newValue = code + ' - ' + def;
       }
+      
+      // Add date if selected
+      if (selectedDate) {
+        const date = new Date(selectedDate + 'T00:00:00');
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = monthNamesArray[date.getMonth()];
+        newValue += ' | NC: ' + day + '-' + month;
+      }
 
       return { success: true, preview: newValue, original: current };
     },
-    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, mapping]
+    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, selectedDate, mapping, monthNames]
   });
 
   return resp?.[0]?.result;
 }
 
-// Apply changes to all matched elements (modifies DOM), optionally click save
-async function applyUpdateOnPage(code, def, preserveRest, saveSelector) {
+// Apply changes to internal title and optionally follow-up date field
+async function applyUpdateOnPage(code, def, preserveRest, selectedDate, followUpSelector, saveSelector) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) throw new Error('No active tab found');
 
   const resp = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: (selector, code, def, preserveRest, saveSelector, allCodes) => {
+    func: (selector, code, def, preserveRest, selectedDate, followUpSelector, saveSelector, allCodes, monthNamesArray) => {
       function applyToElement(el, newValue) {
         const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
         if (isInput) {
@@ -114,7 +172,6 @@ async function applyUpdateOnPage(code, def, preserveRest, saveSelector) {
         }
       }
 
-      // Build code regex for leading code detection
       const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
       const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[-:]+\\s*)?(.*)$', 'i');
 
@@ -147,10 +204,39 @@ async function applyUpdateOnPage(code, def, preserveRest, saveSelector) {
         } else {
           newValue = code + ' - ' + def;
         }
+        
+        // Add date if selected
+        if (selectedDate) {
+          const date = new Date(selectedDate + 'T00:00:00');
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = monthNamesArray[date.getMonth()];
+          newValue += ' | NC: ' + day + '-' + month;
+        }
 
         applyToElement(el, newValue);
         modified++;
       });
+
+      // Update follow-up date field if selector provided and date selected
+      let dateFieldUpdated = false;
+      if (followUpSelector && selectedDate) {
+        try {
+          const dateEls = Array.from(document.querySelectorAll(followUpSelector));
+          if (dateEls.length > 0) {
+            const dateEl = dateEls[0];
+            const isInput = ('value' in dateEl) && (dateEl.tagName === 'INPUT' || dateEl.tagName === 'TEXTAREA');
+            if (isInput) {
+              // Set date value
+              dateEl.value = selectedDate;
+              dateEl.dispatchEvent(new Event('input', { bubbles: true }));
+              dateEl.dispatchEvent(new Event('change', { bubbles: true }));
+              dateFieldUpdated = true;
+            }
+          }
+        } catch (e) {
+          // Silently fail if follow-up date field can't be updated
+        }
+      }
 
       let clicked = false;
       if (saveSelector) {
@@ -161,9 +247,9 @@ async function applyUpdateOnPage(code, def, preserveRest, saveSelector) {
         }
       }
 
-      return { success: true, modified, clickedSave: clicked };
+      return { success: true, modified, dateFieldUpdated, clickedSave: clicked };
     },
-    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, saveSelector, mapping]
+    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, selectedDate, followUpSelector, saveSelector, mapping, monthNames]
   });
 
   return resp?.[0]?.result;
@@ -174,19 +260,24 @@ applyBtn.addEventListener('click', async () => {
   const code = codeSelect.value;
   const def = mapping[code];
   const preserve = document.getElementById('preserveRest').checked;
+  const selectedDate = dateInput.value || '';
+  const followUpSelector = document.getElementById('followUpSelector').value.trim();
   const saveSelector = document.getElementById('saveSelector').value.trim();
 
   try {
-    const res = await applyUpdateOnPage(code, def, preserve, saveSelector);
+    const res = await applyUpdateOnPage(code, def, preserve, selectedDate, followUpSelector, saveSelector);
     if (!res) {
       showStatus('No response from content script', true);
     } else if (!res.success) {
       showStatus('Error: ' + res.error, true);
     } else {
-      showStatus(`Updated ${res.modified} element(s)` + (res.clickedSave ? '; clicked save' : ''));
+      let msg = `Updated ${res.modified} element(s)`;
+      if (res.dateFieldUpdated) msg += '; follow-up date updated';
+      if (res.clickedSave) msg += '; clicked save';
+      showStatus(msg);
       // refresh preview after apply
       try {
-        const p = await computePreviewOnPage(code, def, preserve);
+        const p = await computePreviewOnPage(code, def, preserve, selectedDate);
         if (p && p.success) previewBox.value = p.preview;
       } catch (e) { /* ignore preview refresh errors */ }
     }
@@ -200,9 +291,10 @@ previewBtn.addEventListener('click', async () => {
   const code = codeSelect.value;
   const def = mapping[code];
   const preserve = document.getElementById('preserveRest').checked;
+  const selectedDate = dateInput.value || '';
 
   try {
-    const res = await computePreviewOnPage(code, def, preserve);
+    const res = await computePreviewOnPage(code, def, preserve, selectedDate);
     if (!res) {
       showStatus('No response from page', true);
     } else if (!res.success) {
