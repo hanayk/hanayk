@@ -58,42 +58,6 @@ function showStatus(msg, isError = false) {
   status.style.color = isError ? '#a00' : '#060';
 }
 
-// Format date to "DD-Month" format
-function formatDateString(dateValue) {
-  if (!dateValue) return '';
-  const date = new Date(dateValue + 'T00:00:00');
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = monthNames[date.getMonth()];
-  return `${day}-${month}`;
-}
-
-// Build the full title string with optional date
-function buildTitleString(code, def, preserveRest, currentValue, selectedDate) {
-  let rest = '';
-  
-  // Extract rest of the title if preserve is checked
-  if (preserveRest && currentValue) {
-    const codePattern = Object.keys(mapping).map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-    const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[-:]+\\s*)?(.*)$', 'i');
-    const m = currentValue.match(leadingRegex);
-    if (m && m[2] !== undefined) {
-      rest = m[2].trim();
-    } else if (currentValue.trim()) {
-      rest = currentValue.trim();
-    }
-  }
-  
-  let titleString = code + ' - ' + def + (rest ? ' ' + rest : '');
-  
-  // Add date if selected
-  if (selectedDate) {
-    const formattedDate = formatDateString(selectedDate);
-    titleString += ' | NC: ' + formattedDate;
-  }
-  
-  return titleString;
-}
-
 // Compute preview for the first matched element on the page (does NOT modify the DOM)
 async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -150,14 +114,14 @@ async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
   return resp?.[0]?.result;
 }
 
-// Apply changes to internal title and optionally follow-up date field
-async function applyUpdateOnPage(code, def, preserveRest, selectedDate, followUpSelector, saveSelector) {
+// Apply changes to internal title
+async function applyUpdateOnPage(code, def, preserveRest, selectedDate) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) throw new Error('No active tab found');
 
   const resp = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    func: (selector, code, def, preserveRest, selectedDate, followUpSelector, saveSelector, allCodes, monthNamesArray) => {
+    func: (selector, code, def, preserveRest, selectedDate, allCodes, monthNamesArray) => {
       function applyToElement(el, newValue) {
         const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
         if (isInput) {
@@ -217,39 +181,9 @@ async function applyUpdateOnPage(code, def, preserveRest, selectedDate, followUp
         modified++;
       });
 
-      // Update follow-up date field if selector provided and date selected
-      let dateFieldUpdated = false;
-      if (followUpSelector && selectedDate) {
-        try {
-          const dateEls = Array.from(document.querySelectorAll(followUpSelector));
-          if (dateEls.length > 0) {
-            const dateEl = dateEls[0];
-            const isInput = ('value' in dateEl) && (dateEl.tagName === 'INPUT' || dateEl.tagName === 'TEXTAREA');
-            if (isInput) {
-              // Set date value
-              dateEl.value = selectedDate;
-              dateEl.dispatchEvent(new Event('input', { bubbles: true }));
-              dateEl.dispatchEvent(new Event('change', { bubbles: true }));
-              dateFieldUpdated = true;
-            }
-          }
-        } catch (e) {
-          // Silently fail if follow-up date field can't be updated
-        }
-      }
-
-      let clicked = false;
-      if (saveSelector) {
-        const btn = document.querySelector(saveSelector);
-        if (btn) {
-          btn.click();
-          clicked = true;
-        }
-      }
-
-      return { success: true, modified, dateFieldUpdated, clickedSave: clicked };
+      return { success: true, modified };
     },
-    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, selectedDate, followUpSelector, saveSelector, mapping, monthNames]
+    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, selectedDate, mapping, monthNames]
   });
 
   return resp?.[0]?.result;
@@ -261,20 +195,15 @@ applyBtn.addEventListener('click', async () => {
   const def = mapping[code];
   const preserve = document.getElementById('preserveRest').checked;
   const selectedDate = dateInput.value || '';
-  const followUpSelector = document.getElementById('followUpSelector').value.trim();
-  const saveSelector = document.getElementById('saveSelector').value.trim();
 
   try {
-    const res = await applyUpdateOnPage(code, def, preserve, selectedDate, followUpSelector, saveSelector);
+    const res = await applyUpdateOnPage(code, def, preserve, selectedDate);
     if (!res) {
       showStatus('No response from content script', true);
     } else if (!res.success) {
       showStatus('Error: ' + res.error, true);
     } else {
-      let msg = `Updated ${res.modified} element(s)`;
-      if (res.dateFieldUpdated) msg += '; follow-up date updated';
-      if (res.clickedSave) msg += '; clicked save';
-      showStatus(msg);
+      showStatus(`Updated ${res.modified} element(s)`);
       // refresh preview after apply
       try {
         const p = await computePreviewOnPage(code, def, preserve, selectedDate);
