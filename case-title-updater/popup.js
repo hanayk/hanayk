@@ -1,3 +1,6 @@
+// Hardcoded selector for Dynamics 365 Internal Title field
+const INTERNAL_TITLE_SELECTOR = 'textarea[aria-label="Internal title"]';
+
 // Mapping of codes → definitions (from your list)
 const mapping = {
   "WBUG": "Pending Bug",
@@ -40,7 +43,7 @@ function showStatus(msg, isError = false) {
 }
 
 // Compute preview for the first matched element on the page (does NOT modify the DOM)
-async function computePreviewOnPage(selector, code, def, preserveRest) {
+async function computePreviewOnPage(code, def, preserveRest) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) throw new Error('No active tab found');
 
@@ -57,7 +60,7 @@ async function computePreviewOnPage(selector, code, def, preserveRest) {
       } catch (e) {
         return { success: false, error: 'Invalid selector: ' + e.message };
       }
-      if (!els.length) return { success: false, error: 'No elements matched selector' };
+      if (!els.length) return { success: false, error: 'Internal title field not found on this page' };
 
       // For preview, compute new value for first element
       const el = els[0];
@@ -83,14 +86,14 @@ async function computePreviewOnPage(selector, code, def, preserveRest) {
 
       return { success: true, preview: newValue, original: current };
     },
-    args: [selector, code, def, preserveRest, mapping]
+    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, mapping]
   });
 
   return resp?.[0]?.result;
 }
 
 // Apply changes to all matched elements (modifies DOM), optionally click save
-async function applyUpdateOnPage(selector, code, def, preserveRest, saveSelector) {
+async function applyUpdateOnPage(code, def, preserveRest, saveSelector) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) throw new Error('No active tab found');
 
@@ -121,7 +124,7 @@ async function applyUpdateOnPage(selector, code, def, preserveRest, saveSelector
       } catch (e) {
         return { success: false, error: 'Invalid selector: ' + e.message };
       }
-      if (!els.length) return { success: false, error: 'No elements matched selector' };
+      if (!els.length) return { success: false, error: 'Internal title field not found on this page' };
 
       let modified = 0;
       els.forEach(el => {
@@ -160,7 +163,7 @@ async function applyUpdateOnPage(selector, code, def, preserveRest, saveSelector
 
       return { success: true, modified, clickedSave: clicked };
     },
-    args: [selector, code, def, preserveRest, saveSelector, mapping]
+    args: [INTERNAL_TITLE_SELECTOR, code, def, preserveRest, saveSelector, mapping]
   });
 
   return resp?.[0]?.result;
@@ -168,19 +171,13 @@ async function applyUpdateOnPage(selector, code, def, preserveRest, saveSelector
 
 applyBtn.addEventListener('click', async () => {
   showStatus('Applying...');
-  const selector = document.getElementById('selector').value.trim();
   const code = codeSelect.value;
   const def = mapping[code];
   const preserve = document.getElementById('preserveRest').checked;
   const saveSelector = document.getElementById('saveSelector').value.trim();
 
-  if (!selector) {
-    showStatus('Please provide a CSS selector.', true);
-    return;
-  }
-
   try {
-    const res = await applyUpdateOnPage(selector, code, def, preserve, saveSelector);
+    const res = await applyUpdateOnPage(code, def, preserve, saveSelector);
     if (!res) {
       showStatus('No response from content script', true);
     } else if (!res.success) {
@@ -189,7 +186,7 @@ applyBtn.addEventListener('click', async () => {
       showStatus(`Updated ${res.modified} element(s)` + (res.clickedSave ? '; clicked save' : ''));
       // refresh preview after apply
       try {
-        const p = await computePreviewOnPage(selector, code, def, preserve);
+        const p = await computePreviewOnPage(code, def, preserve);
         if (p && p.success) previewBox.value = p.preview;
       } catch (e) { /* ignore preview refresh errors */ }
     }
@@ -200,18 +197,12 @@ applyBtn.addEventListener('click', async () => {
 
 previewBtn.addEventListener('click', async () => {
   showStatus('Computing preview...');
-  const selector = document.getElementById('selector').value.trim();
   const code = codeSelect.value;
   const def = mapping[code];
   const preserve = document.getElementById('preserveRest').checked;
 
-  if (!selector) {
-    showStatus('Please provide a CSS selector.', true);
-    return;
-  }
-
   try {
-    const res = await computePreviewOnPage(selector, code, def, preserve);
+    const res = await computePreviewOnPage(code, def, preserve);
     if (!res) {
       showStatus('No response from page', true);
     } else if (!res.success) {

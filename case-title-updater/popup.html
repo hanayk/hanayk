@@ -12,11 +12,11 @@
       .row > * { flex:1; }
       #previewRow { margin-top:8px; display:flex; gap:8px; align-items:center; }
       #previewBox { flex:1; }
+      .info-box { background:#f0f8ff; padding:8px; border-radius:4px; margin-bottom:12px; font-size:12px; }
     </style>
   </head>
   <body>
-    <label>CSS selector for case title element(s)</label>
-    <input id="selector" type="text" placeholder=".case-title, #case_title, input[name='title']" />
+    <div class="info-box">🎯 Internal Title field auto-detected</div>
 
     <label>Case code → definition</label>
     <select id="codeSelect"></select>
@@ -26,7 +26,7 @@
     </label>
 
     <label class="small">Optional: CSS selector for Save button to click after update</label>
-    <input id="saveSelector" type="text" placeholder=".save-btn, button[type=submit]" />
+    <input id="saveSelector" type="text" placeholder="e.g., button[data-id='header_save']" />
 
     <div id="previewRow">
       <input id="previewBox" type="text" readonly placeholder="Preview will appear here" />
