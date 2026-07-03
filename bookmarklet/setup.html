@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Title Updater - Bookmarklet Setup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0078d4;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .method {
+            margin: 30px 0;
+            padding: 20px;
+            border-left: 4px solid #0078d4;
+            background: #f9f9f9;
+        }
+        .method h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            line-height: 1.5;
+        }
+        .copy-btn {
+            background: #0078d4;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .copy-btn:hover {
+            background: #106ebe;
+        }
+        .steps {
+            list-style-position: inside;
+            line-height: 1.8;
+        }
+        .warning {
+            background: #fff4ce;
+            padding: 15px;
+            border-left: 4px solid #ffb81c;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            padding: 15px;
+            border-left: 4px solid #28a745;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .feature-box {
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #0078d4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Case Title Updater - Bookmarklet Setup</h1>
+        <p class="subtitle">For locked devices without extension support</p>
+
+        <div class="method">
+            <h2>✅ METHOD 1: Quick Setup (Recommended)</h2>
+            <p>Drag this button to your bookmarks bar:</p>
+            <a href="javascript:(function(){const mapping={WBUG:'Pending Bug',WICM:'Pending ICM',WPTA:'Waiting on PTL',WSEE:'Waiting on MS EE\'s',UNSU:'Unsupported scenario/out of scope',DUPL:'Duplicate case',WCOL:'Awaiting collaboration',TRNF:'Transferred to other MS',WOCT:'Waiting on Customer',WOSE:'Waiting on Support Engineer',WOEE:'Waiting on EE',WOTA:'Waiting on Technical Advisor',MOTR:'Case on Monitoring',UNRC:'Unresponsive Customer',TREC:'Pending technical Recovery',MREC:'Pending manager Recovery',RTCL:'Ready to Close'};const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];const INTERNAL_TITLE_SELECTOR='textarea[aria-label=\"Internal title\"]';const overlay=document.createElement('div');overlay.id='case-updater-overlay';overlay.style.cssText='position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 999999;';const modal=document.createElement('div');modal.style.cssText='background: white; border-radius: 8px; padding: 20px; width: 420px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: Arial, sans-serif;';const today=new Date();const yyyy=today.getFullYear();const mm=String(today.getMonth()+1).padStart(2,'0');const dd=String(today.getDate()).padStart(2,'0');const todayStr=`${yyyy}-${mm}-${dd}`;modal.innerHTML=`<div style=\"background: #f0f8ff; padding: 8px; border-radius: 4px; margin-bottom: 12px; font-size: 12px;\">🎯 Internal Title Updater</div><label style=\"display:block; margin-top: 10px; font-size: 12px; color: #333; font-weight: bold;\">Case code → definition</label><select id=\"codeSelect\" style=\"width: 100%; padding: 6px; box-sizing: border-box; margin-top: 4px;\"><option value=\"\">-- Select a code --</option></select><label style=\"display:block; margin-top: 10px; font-size: 12px; color: #333; font-weight: bold;\">📅 Next Contact Date (Optional)</label><input id=\"dateInput\" type=\"date\" value=\"${todayStr}\" min=\"${todayStr}\" style=\"width: 100%; padding: 6px; box-sizing: border-box; margin-top: 4px;\" /><div style=\"font-size: 12px; color: #666; margin-top: 4px;\">Format: NC: DD-Month (e.g., NC: 04-July)</div><label style=\"display:block; margin-top: 10px; font-size: 12px; color: #666;\"><input id=\"preserveRest\" type=\"checkbox\" /> Preserve rest of title</label><div style=\"margin-top: 8px; display: flex; gap: 8px; align-items: center;\"><input id=\"previewBox\" type=\"text\" readonly placeholder=\"Preview will appear here\" style=\"flex: 1; padding: 6px; box-sizing: border-box;\" /><button id=\"copyBtn\" style=\"padding: 6px 12px; cursor: pointer;\">Copy</button></div><div style=\"display: flex; gap: 8px; margin-top: 10px;\"><button id=\"applyBtn\" style=\"flex: 1; padding: 8px 12px; cursor: pointer; background: #0078d4; color: white; border: none; border-radius: 4px;\">Apply</button><button id=\"previewBtn\" style=\"flex: 1; padding: 8px 12px; cursor: pointer; background: #107c10; color: white; border: none; border-radius: 4px;\">Preview</button><button id=\"closeBtn\" style=\"flex: 1; padding: 8px 12px; cursor: pointer; background: #d13438; color: white; border: none; border-radius: 4px;\">Close</button></div><div id=\"status\" style=\"font-size: 12px; color: #666; margin-top: 8px;\"></div>`;overlay.appendChild(modal);document.body.appendChild(overlay);const codeSelect=document.getElementById('codeSelect');const dateInput=document.getElementById('dateInput');const previewBox=document.getElementById('previewBox');const copyBtn=document.getElementById('copyBtn');const applyBtn=document.getElementById('applyBtn');const previewBtn=document.getElementById('previewBtn');const closeBtn=document.getElementById('closeBtn');const status=document.getElementById('status');const preserveRest=document.getElementById('preserveRest');Object.entries(mapping).forEach(([code,def])=>{const opt=document.createElement('option');opt.value=code;opt.textContent=`${code} — ${def}`;codeSelect.appendChild(opt);});function showStatus(msg,isError=false){status.textContent=msg;status.style.color=isError?'#a00':'#060';}function buildPreview(code,def,selectedDate,preserve,currentValue){let rest='';if(preserve&&currentValue){const codePattern=Object.keys(mapping).map(c=>c.replace(/[.*+?^${}()|[\\]\\]/g,'\\\\$&')).join('|');const leadingRegex=new RegExp('^\\\\s*('+codePattern+')\\\\s*(?:[-:]+\\\\s*)?(.*)$','i');const m=currentValue.match(leadingRegex);if(m&&m[2]!==undefined){rest=m[2].trim();}else if(currentValue.trim()){rest=currentValue.trim();}}let newValue=code+' - '+def+(rest?' '+rest:'');if(selectedDate){const date=new Date(selectedDate+'T00:00:00');const day=String(date.getDate()).padStart(2,'0');const month=monthNames[date.getMonth()];newValue+=' | NC: '+day+'-'+month;}return newValue;}previewBtn.addEventListener('click',()=>{if(!codeSelect.value){showStatus('Please select a case code',true);return;}const code=codeSelect.value;const def=mapping[code];const selectedDate=dateInput.value||'';let currentValue='';try{const els=document.querySelectorAll(INTERNAL_TITLE_SELECTOR);if(els.length>0){currentValue=els[0].value||'';}}catch(e){}const preview=buildPreview(code,def,selectedDate,preserveRest.checked,currentValue);previewBox.value=preview;showStatus('Preview ready');});copyBtn.addEventListener('click',()=>{const text=previewBox.value||'';if(!text){showStatus('Nothing to copy. Generate a preview first.',true);return;}navigator.clipboard.writeText(text).then(()=>{showStatus('Copied to clipboard');}).catch(()=>{previewBox.select();document.execCommand('copy');showStatus('Copied to clipboard');});});applyBtn.addEventListener('click',()=>{if(!codeSelect.value){showStatus('Please select a case code',true);return;}showStatus('Applying...');const code=codeSelect.value;const def=mapping[code];const selectedDate=dateInput.value||'';try{const els=document.querySelectorAll(INTERNAL_TITLE_SELECTOR);if(!els.length){showStatus('Internal title field not found on this page',true);return;}let modified=0;els.forEach(el=>{const currentValue=el.value||'';const preview=buildPreview(code,def,selectedDate,preserveRest.checked,currentValue);el.value=preview;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));modified++;});previewBox.value=buildPreview(code,def,selectedDate,preserveRest.checked,'');showStatus(`Updated ${modified} element(s)`);}catch(err){showStatus('Error: '+err.message,true);}});closeBtn.addEventListener('click',()=>{overlay.remove();});overlay.addEventListener('click',(e)=>{if(e.target===overlay){overlay.remove();}});})();" 
+            style="display: inline-block; padding: 12px 24px; background: #0078d4; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; cursor: move;">
+            📌 Drag Me to Bookmarks Bar
+            </a>
+            <div class="success">
+                <strong>✅ Easiest Method:</strong> Just drag the button above to your bookmarks bar, then click it on any Dynamics 365 page!
+            </div>
+        </div>
+
+        <div class="method">
+            <h2>METHOD 2: Manual Setup (If drag-and-drop doesn't work)</h2>
+            <p><strong>Step 1:</strong> Click the code block to select all:</p>
+            <div class="code-block" id="codeBlock">javascript:(function(){const mapping={WBUG:'Pending Bug',WICM:'Pending ICM',WPTA:'Waiting on PTL',WSEE:'Waiting on MS EE\'s',UNSU:'Unsupported scenario/out of scope',DUPL:'Duplicate case',WCOL:'Awaiting collaboration',TRNF:'Transferred to other MS',WOCT:'Waiting on Customer',WOSE:'Waiting on Support Engineer',WOEE:'Waiting on EE',WOTA:'Waiting on Technical Advisor',MOTR:'Case on Monitoring',UNRC:'Unresponsive Customer',TREC:'Pending technical Recovery',MREC:'Pending manager Recovery',RTCL:'Ready to Close'};const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];const INTERNAL_TITLE_SELECTOR='textarea[aria-label=\"Internal title\"]';const overlay=document.createElement('div');overlay.id='case-updater-overlay';overlay.style.cssText='position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 999999;';const modal=document.createElement('div');modal.style.cssText='background: white; border-radius: 8px; padding: 20px; width: 420px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: Arial, sans-serif;';const today=new Date();const yyyy=today.getFullYear();const mm=String(today.getMonth()+1).padStart(2,'0');const dd=String(today.getDate()).padStart(2,'0');const todayStr=`${yyyy}-${mm}-${dd}`;modal.innerHTML=`<div style=\"background: #f0f8ff; padding: 8px; border-radius: 4px; margin-bottom: 12px; font-size: 12px;\">🎯 Internal Title Updater</div><label style=\"display:block; margin-top: 10px; font-size: 12px; color: #333; font-weight: bold;\">Case code → definition</label><select id=\"codeSelect\" style=\"width: 100%; padding: 6px; box-sizing: border-box; margin-top: 4px;\"><option value=\"\">-- Select a code --</option></select><label style=\"display:block; margin-top: 10px; font-size: 12px; color: #333; font-weight: bold;\">📅 Next Contact Date (Optional)</label><input id=\"dateInput\" type=\"date\" value=\"${todayStr}\" min=\"${todayStr}\" style=\"width: 100%; padding: 6px; box-sizing: border-box; margin-top: 4px;\" /><div style=\"font-size: 12px; color: #666; margin-top: 4px;\">Format: NC: DD-Month (e.g., NC: 04-July)</div><label style=\"display:block; margin-top: 10px; font-size: 12px; color: #666;\"><input id=\"preserveRest\" type=\"checkbox\" /> Preserve rest of title</label><div style=\"margin-top: 8px; display: flex; gap: 8px; align-items: center;\"><input id=\"previewBox\" type=\"text\" readonly placeholder=\"Preview will appear here\" style=\"flex: 1; padding: 6px; box-sizing: border-box;\" /><button id=\"copyBtn\" style=\"padding: 6px 12px; cursor: pointer;\">Copy</button></div><div style=\"display: flex; gap: 8px; margin-top: 10px;\"><button id=\"applyBtn\" style=\"flex: 1; padding: 8px 12px; cursor: pointer; background: #0078d4; color: white; border: none; border-radius: 4px;\">Apply</button><button id=\"previewBtn\" style=\"flex: 1; padding: 8px 12px; cursor: pointer; background: #107c10; color: white; border: none; border-radius: 4px;\">Preview</button><button id=\"closeBtn\" style=\"flex: 1; padding: 8px 12px; cursor: pointer; background: #d13438; color: white; border: none; border-radius: 4px;\">Close</button></div><div id=\"status\" style=\"font-size: 12px; color: #666; margin-top: 8px;\"></div>`;overlay.appendChild(modal);document.body.appendChild(overlay);const codeSelect=document.getElementById('codeSelect');const dateInput=document.getElementById('dateInput');const previewBox=document.getElementById('previewBox');const copyBtn=document.getElementById('copyBtn');const applyBtn=document.getElementById('applyBtn');const previewBtn=document.getElementById('previewBtn');const closeBtn=document.getElementById('closeBtn');const status=document.getElementById('status');const preserveRest=document.getElementById('preserveRest');Object.entries(mapping).forEach(([code,def])=>{const opt=document.createElement('option');opt.value=code;opt.textContent=`${code} — ${def}`;codeSelect.appendChild(opt);});function showStatus(msg,isError=false){status.textContent=msg;status.style.color=isError?'#a00':'#060';}function buildPreview(code,def,selectedDate,preserve,currentValue){let rest='';if(preserve&&currentValue){const codePattern=Object.keys(mapping).map(c=>c.replace(/[.*+?^${}()|[\\]\\]/g,'\\\\$&')).join('|');const leadingRegex=new RegExp('^\\\\s*('+codePattern+')\\\\s*(?:[-:]+\\\\s*)?(.*)$','i');const m=currentValue.match(leadingRegex);if(m&&m[2]!==undefined){rest=m[2].trim();}else if(currentValue.trim()){rest=currentValue.trim();}}let newValue=code+' - '+def+(rest?' '+rest:'');if(selectedDate){const date=new Date(selectedDate+'T00:00:00');const day=String(date.getDate()).padStart(2,'0');const month=monthNames[date.getMonth()];newValue+=' | NC: '+day+'-'+month;}return newValue;}previewBtn.addEventListener('click',()=>{if(!codeSelect.value){showStatus('Please select a case code',true);return;}const code=codeSelect.value;const def=mapping[code];const selectedDate=dateInput.value||'';let currentValue='';try{const els=document.querySelectorAll(INTERNAL_TITLE_SELECTOR);if(els.length>0){currentValue=els[0].value||'';}}catch(e){}const preview=buildPreview(code,def,selectedDate,preserveRest.checked,currentValue);previewBox.value=preview;showStatus('Preview ready');});copyBtn.addEventListener('click',()=>{const text=previewBox.value||'';if(!text){showStatus('Nothing to copy. Generate a preview first.',true);return;}navigator.clipboard.writeText(text).then(()=>{showStatus('Copied to clipboard');}).catch(()=>{previewBox.select();document.execCommand('copy');showStatus('Copied to clipboard');});});applyBtn.addEventListener('click',()=>{if(!codeSelect.value){showStatus('Please select a case code',true);return;}showStatus('Applying...');const code=codeSelect.value;const def=mapping[code];const selectedDate=dateInput.value||'';try{const els=document.querySelectorAll(INTERNAL_TITLE_SELECTOR);if(!els.length){showStatus('Internal title field not found on this page',true);return;}let modified=0;els.forEach(el=>{const currentValue=el.value||'';const preview=buildPreview(code,def,selectedDate,preserveRest.checked,currentValue);el.value=preview;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));modified++;});previewBox.value=buildPreview(code,def,selectedDate,preserveRest.checked,'');showStatus(`Updated ${modified} element(s)`);}catch(err){showStatus('Error: '+err.message,true);}});closeBtn.addEventListener('click',()=>{overlay.remove();});overlay.addEventListener('click',(e)=>{if(e.target===overlay){overlay.remove();}});})();"</div>
+            <button class="copy-btn" onclick="copyCode()">📋 Copy All Code</button>
+            
+            <p><strong>Step 2:</strong> Create a new bookmark:</p>
+            <ul class="steps">
+                <li><strong>Chrome/Edge:</strong> Press <code>Ctrl+Shift+B</code> (Windows) or <code>Cmd+Shift+B</code> (Mac) to open Bookmark Manager</li>
+                <li>Click the three dots menu → <strong>Add new bookmark</strong></li>
+                <li>Name: <strong>Case Title Updater</strong></li>
+                <li>URL: Paste the code you copied above</li>
+                <li>Click <strong>Save</strong></li>
+            </ul>
+            
+            <p><strong>Step 3:</strong> Use the bookmark</p>
+            <ul class="steps">
+                <li>Go to your Dynamics 365 case page</li>
+                <li>Click the <strong>Case Title Updater</strong> bookmark</li>
+                <li>A popup will appear - select code and date</li>
+                <li>Click <strong>Preview</strong> or <strong>Apply</strong></li>
+            </ul>
+        </div>
+
+        <div class="features">
+            <div class="feature-box">
+                <strong>✅ Works On:</strong>
+                <ul>
+                    <li>Chrome</li>
+                    <li>Edge</li>
+                    <li>Firefox</li>
+                    <li>Safari</li>
+                </ul>
+            </div>
+            <div class="feature-box">
+                <strong>✅ Features:</strong>
+                <ul>
+                    <li>No installation needed</li>
+                    <li>Works on locked devices</li>
+                    <li>Completely offline</li>
+                    <li>Date picker included</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="warning">
+            <strong>⚠️ If it doesn't work:</strong>
+            <ul>
+                <li>Make sure the code starts with <code>javascript:</code></li>
+                <li>Check that you're on a Dynamics 365 case page</li>
+                <li>Try refreshing the page first</li>
+                <li>Open browser console (F12) to check for errors</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function copyCode() {
+            const codeBlock = document.getElementById('codeBlock');
+            const text = codeBlock.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Code copied to clipboard!');
+            }).catch(() => {
+                codeBlock.select();
+                document.execCommand('copy');
+                alert('Code copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+</html>
