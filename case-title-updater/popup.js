@@ -90,12 +90,12 @@ async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
 
       let newValue;
       if (preserveRest) {
-        newValue = code + ' - ' + def + (rest ? ' ' + rest : '');
+        newValue = code + (rest ? ' ' + rest : '');
         if (!m && current.trim()) {
-          newValue = code + ' - ' + def + ' ' + current.trim();
+          newValue = code + ' ' + current.trim();
         }
       } else {
-        newValue = code + ' - ' + def;
+        newValue = code;
       }
       
       // Add date if selected
@@ -161,12 +161,12 @@ async function applyUpdateOnPage(code, def, preserveRest, selectedDate) {
 
         let newValue;
         if (preserveRest) {
-          newValue = code + ' - ' + def + (rest ? ' ' + rest : '');
+          newValue = code + (rest ? ' ' + rest : '');
           if (!m && current.trim()) {
-            newValue = code + ' - ' + def + ' ' + current.trim();
+            newValue = code + ' ' + current.trim();
           }
         } else {
-          newValue = code + ' - ' + def;
+          newValue = code;
         }
         
         // Add date if selected
