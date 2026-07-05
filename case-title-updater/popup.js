@@ -58,6 +58,15 @@ function showStatus(msg, isError = false) {
   status.style.color = isError ? '#a00' : '#060';
 }
 
+// Helper to extract and normalize NC token from a text
+function extractNCToken(text) {
+  const ncRegex = /\|\s*NC:\s*([^|]+)/i;
+  const m = text.match(ncRegex);
+  if (!m) return null;
+  const val = m[1].trim();
+  return 'NC: ' + val;
+}
+
 // Compute preview for the first matched element on the page (does NOT modify the DOM)
 async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -66,8 +75,17 @@ async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
   const resp = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: (selector, code, def, preserveRest, selectedDate, allCodes, monthNamesArray) => {
-      const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[-:]+\\s*)?(.*)$', 'i');
+      // Build a pattern that matches any of the known codes at the start of the title
+      const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|');
+      // Accept separators including pipe, dash, colon, em/en dash and surrounding spaces
+      const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[\\-:\\|–—]+\\s*)?(.*)$', 'i');
+
+      function extractNC(text) {
+        const ncRegex = /\|\s*NC:\s*([^|]+)/i;
+        const m = text.match(ncRegex);
+        if (!m) return null;
+        return 'NC: ' + m[1].trim();
+      }
 
       let els;
       try {
@@ -80,30 +98,46 @@ async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
       const el = els[0];
       const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
       const current = isInput ? (el.value || '') : (el.textContent || '');
-      let rest = '';
+
+      // Detect leading code and capture rest
       const m = current.match(leadingRegex);
+      let rest = '';
       if (m && m[2] !== undefined) {
         rest = m[2].trim();
-      } else {
-        rest = '';
+      } else if (!m) {
+        rest = current.trim();
+      }
+
+      // Extract any existing NC token from the whole title (not just rest)
+      const existingNC = extractNC(current);
+
+      // Remove all NC tokens and any leading separators from rest to avoid duplication
+      rest = rest.replace(/\|\s*NC:[^|]*/gi, '').replace(/^[\s\-:\|–—]+/, '').trim();
+
+      // Determine NC to use: selectedDate (if provided) overrides existing NC, otherwise keep existingNC
+      let ncString = null;
+      if (selectedDate) {
+        const d = new Date(selectedDate + 'T00:00:00');
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = monthNamesArray[d.getMonth()];
+        ncString = 'NC: ' + day + '-' + month;
+      } else if (existingNC) {
+        ncString = existingNC;
       }
 
       let newValue;
       if (preserveRest) {
-        newValue = code + (rest ? ' ' + rest : '');
-        if (!m && current.trim()) {
-          newValue = code + ' ' + current.trim();
+        if (m) {
+          // Leading code detected: replace it and ensure NC (if any) is placed immediately after code
+          newValue = code + (ncString ? ' | ' + ncString : '') + (rest ? ' | ' + rest : '');
+        } else {
+          // No leading code: treat the whole current as rest but place NC after code (if any)
+          const sanitized = rest; // already stripped NC tokens
+          newValue = code + (ncString ? ' | ' + ncString : '') + (sanitized ? ' | ' + sanitized : '');
         }
       } else {
-        newValue = code;
-      }
-      
-      // Add date if selected
-      if (selectedDate) {
-        const date = new Date(selectedDate + 'T00:00:00');
-        const day = String(date.getDate()).padStart(2, '0');
-        const month = monthNamesArray[date.getMonth()];
-        newValue += ' | NC: ' + day + '-' + month;
+        // Not preserving rest: only keep NC (existing or selected) after the code
+        newValue = code + (ncString ? ' | ' + ncString : '');
       }
 
       return { success: true, preview: newValue, original: current };
@@ -136,8 +170,16 @@ async function applyUpdateOnPage(code, def, preserveRest, selectedDate) {
         }
       }
 
-      const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-      const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[-:]+\\s*)?(.*)$', 'i');
+      // Build patterns
+      const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|');
+      const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[\\-:\\|–—]+\\s*)?(.*)$', 'i');
+
+      function extractNC(text) {
+        const ncRegex = /\|\s*NC:\s*([^|]+)/i;
+        const m = text.match(ncRegex);
+        if (!m) return null;
+        return 'NC: ' + m[1].trim();
+      }
 
       let els;
       try {
@@ -151,30 +193,46 @@ async function applyUpdateOnPage(code, def, preserveRest, selectedDate) {
       els.forEach(el => {
         const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
         const current = isInput ? (el.value || '') : (el.textContent || '');
-        let rest = '';
+
+        // Detect leading code and capture rest
         const m = current.match(leadingRegex);
+        let rest = '';
         if (m && m[2] !== undefined) {
           rest = m[2].trim();
-        } else {
-          rest = '';
+        } else if (!m) {
+          rest = current.trim();
+        }
+
+        // Extract any existing NC token from the whole title (not just rest)
+        const existingNC = extractNC(current);
+
+        // Remove all NC tokens and any leading separators from rest to avoid duplication
+        rest = rest.replace(/\|\s*NC:[^|]*/gi, '').replace(/^[\s\-:\|–—]+/, '').trim();
+
+        // Determine NC to use: selectedDate (if provided) overrides existing NC, otherwise keep existingNC
+        let ncString = null;
+        if (selectedDate) {
+          const d = new Date(selectedDate + 'T00:00:00');
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = monthNamesArray[d.getMonth()];
+          ncString = 'NC: ' + day + '-' + month;
+        } else if (existingNC) {
+          ncString = existingNC;
         }
 
         let newValue;
         if (preserveRest) {
-          newValue = code + (rest ? ' ' + rest : '');
-          if (!m && current.trim()) {
-            newValue = code + ' ' + current.trim();
+          if (m) {
+            // Leading code detected: replace it and ensure NC (if any) is placed immediately after code
+            newValue = code + (ncString ? ' | ' + ncString : '') + (rest ? ' | ' + rest : '');
+          } else {
+            // No leading code: treat the whole current as rest but place NC after code (if any)
+            const sanitized = rest; // already stripped NC tokens
+            newValue = code + (ncString ? ' | ' + ncString : '') + (sanitized ? ' | ' + sanitized : '');
           }
         } else {
-          newValue = code;
-        }
-        
-        // Add date if selected
-        if (selectedDate) {
-          const date = new Date(selectedDate + 'T00:00:00');
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = monthNamesArray[date.getMonth()];
-          newValue += ' | NC: ' + day + '-' + month;
+          // Not preserving rest: only keep NC (existing or selected) after the code
+          newValue = code + (ncString ? ' | ' + ncString : '');
         }
 
         applyToElement(el, newValue);
