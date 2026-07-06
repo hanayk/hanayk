@@ -75,10 +75,10 @@ async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
   const resp = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     func: (selector, code, def, preserveRest, selectedDate, allCodes, monthNamesArray) => {
-      // Build a pattern that matches any of the known codes at the start of the title
+      // Build a pattern that matches any of the known codes
       const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|');
-      // Accept separators including pipe, dash, colon, em/en dash and surrounding spaces
-      const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[\\-:\\|–—]+\\s*)?(.*)$', 'i');
+      // Pattern to match: code at start of line/section (surrounded by separators or start)
+      const allCodesRegex = new RegExp('(' + codePattern + ')(?:\\s*(?:[\\-:\\|–—]+\\s*)?)', 'gi');
 
       function extractNC(text) {
         const ncRegex = /\|\s*NC:\s*([^|]+)/i;
@@ -99,45 +99,47 @@ async function computePreviewOnPage(code, def, preserveRest, selectedDate) {
       const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
       const current = isInput ? (el.value || '') : (el.textContent || '');
 
-      // Detect leading code and capture rest
-      const m = current.match(leadingRegex);
-      let rest = '';
-      if (m && m[2] !== undefined) {
-        rest = m[2].trim();
-      } else if (!m) {
-        rest = current.trim();
-      }
-
-      // Extract any existing NC token from the whole title (not just rest)
+      // Extract any existing NC token from the whole title BEFORE any modifications
       const existingNC = extractNC(current);
 
-      // Remove all NC tokens and any leading separators from rest to avoid duplication
-      rest = rest.replace(/\|\s*NC:[^|]*/gi, '').replace(/^[\s\-:\|–—]+/, '').trim();
+      // Remove ALL known codes and ALL NC tokens from the title to get clean content
+      let cleanContent = current
+        .replace(allCodesRegex, '') // Remove all known codes
+        .replace(/\|\s*NC:[^|]*/gi, '') // Remove all NC tokens
+        .replace(/^\s*[\|\-:\–—]+\s*/, '') // Remove leading separators
+        .replace(/\s*[\|\-:\–—]+\s*$/, '') // Remove trailing separators
+        .replace(/\|\s*\|/g, '|') // Clean up double separators
+        .replace(/\s+\|\s+/g, ' | ') // Normalize separators
+        .trim();
 
-      // Determine NC to use: selectedDate (if provided) overrides existing NC, otherwise keep existingNC
+      // Determine NC to use: only if selectedDate is explicitly provided AND not empty
       let ncString = null;
-      if (selectedDate) {
+      if (selectedDate && selectedDate.trim()) {
         const d = new Date(selectedDate + 'T00:00:00');
         const day = String(d.getDate()).padStart(2, '0');
         const month = monthNamesArray[d.getMonth()];
         ncString = 'NC: ' + day + '-' + month;
-      } else if (existingNC) {
+      } else if (preserveRest && existingNC) {
+        // Only preserve existing NC if we're in "preserve rest" mode AND no new date was selected
         ncString = existingNC;
       }
+      // Otherwise ncString stays null (no date will be added)
 
       let newValue;
       if (preserveRest) {
-        if (m) {
-          // Leading code detected: replace it and ensure NC (if any) is placed immediately after code
-          newValue = code + (ncString ? ' | ' + ncString : '') + (rest ? ' | ' + rest : '');
+        // Preserve rest: keep the clean content
+        if (ncString) {
+          newValue = code + ' | ' + ncString + (cleanContent ? ' | ' + cleanContent : '');
         } else {
-          // No leading code: treat the whole current as rest but place NC after code (if any)
-          const sanitized = rest; // already stripped NC tokens
-          newValue = code + (ncString ? ' | ' + ncString : '') + (sanitized ? ' | ' + sanitized : '');
+          newValue = code + (cleanContent ? ' | ' + cleanContent : '');
         }
       } else {
-        // Not preserving rest: only keep NC (existing or selected) after the code
-        newValue = code + (ncString ? ' | ' + ncString : '');
+        // Don't preserve rest: only code and optional date
+        if (ncString) {
+          newValue = code + ' | ' + ncString;
+        } else {
+          newValue = code;
+        }
       }
 
       return { success: true, preview: newValue, original: current };
@@ -172,7 +174,7 @@ async function applyUpdateOnPage(code, def, preserveRest, selectedDate) {
 
       // Build patterns
       const codePattern = Object.keys(allCodes).map(c => c.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|');
-      const leadingRegex = new RegExp('^\\s*(' + codePattern + ')\\s*(?:[\\-:\\|–—]+\\s*)?(.*)$', 'i');
+      const allCodesRegex = new RegExp('(' + codePattern + ')(?:\\s*(?:[\\-:\\|–—]+\\s*)?)', 'gi');
 
       function extractNC(text) {
         const ncRegex = /\|\s*NC:\s*([^|]+)/i;
@@ -194,45 +196,47 @@ async function applyUpdateOnPage(code, def, preserveRest, selectedDate) {
         const isInput = ('value' in el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && !el.isContentEditable;
         const current = isInput ? (el.value || '') : (el.textContent || '');
 
-        // Detect leading code and capture rest
-        const m = current.match(leadingRegex);
-        let rest = '';
-        if (m && m[2] !== undefined) {
-          rest = m[2].trim();
-        } else if (!m) {
-          rest = current.trim();
-        }
-
-        // Extract any existing NC token from the whole title (not just rest)
+        // Extract any existing NC token from the whole title BEFORE any modifications
         const existingNC = extractNC(current);
 
-        // Remove all NC tokens and any leading separators from rest to avoid duplication
-        rest = rest.replace(/\|\s*NC:[^|]*/gi, '').replace(/^[\s\-:\|–—]+/, '').trim();
+        // Remove ALL known codes and ALL NC tokens from the title to get clean content
+        let cleanContent = current
+          .replace(allCodesRegex, '') // Remove all known codes
+          .replace(/\|\s*NC:[^|]*/gi, '') // Remove all NC tokens
+          .replace(/^\s*[\|\-:\–—]+\s*/, '') // Remove leading separators
+          .replace(/\s*[\|\-:\–—]+\s*$/, '') // Remove trailing separators
+          .replace(/\|\s*\|/g, '|') // Clean up double separators
+          .replace(/\s+\|\s+/g, ' | ') // Normalize separators
+          .trim();
 
-        // Determine NC to use: selectedDate (if provided) overrides existing NC, otherwise keep existingNC
+        // Determine NC to use: only if selectedDate is explicitly provided AND not empty
         let ncString = null;
-        if (selectedDate) {
+        if (selectedDate && selectedDate.trim()) {
           const d = new Date(selectedDate + 'T00:00:00');
           const day = String(d.getDate()).padStart(2, '0');
           const month = monthNamesArray[d.getMonth()];
           ncString = 'NC: ' + day + '-' + month;
-        } else if (existingNC) {
+        } else if (preserveRest && existingNC) {
+          // Only preserve existing NC if we're in "preserve rest" mode AND no new date was selected
           ncString = existingNC;
         }
+        // Otherwise ncString stays null (no date will be added)
 
         let newValue;
         if (preserveRest) {
-          if (m) {
-            // Leading code detected: replace it and ensure NC (if any) is placed immediately after code
-            newValue = code + (ncString ? ' | ' + ncString : '') + (rest ? ' | ' + rest : '');
+          // Preserve rest: keep the clean content
+          if (ncString) {
+            newValue = code + ' | ' + ncString + (cleanContent ? ' | ' + cleanContent : '');
           } else {
-            // No leading code: treat the whole current as rest but place NC after code (if any)
-            const sanitized = rest; // already stripped NC tokens
-            newValue = code + (ncString ? ' | ' + ncString : '') + (sanitized ? ' | ' + sanitized : '');
+            newValue = code + (cleanContent ? ' | ' + cleanContent : '');
           }
         } else {
-          // Not preserving rest: only keep NC (existing or selected) after the code
-          newValue = code + (ncString ? ' | ' + ncString : '');
+          // Don't preserve rest: only code and optional date
+          if (ncString) {
+            newValue = code + ' | ' + ncString;
+          } else {
+            newValue = code;
+          }
         }
 
         applyToElement(el, newValue);
